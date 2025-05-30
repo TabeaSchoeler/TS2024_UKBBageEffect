@@ -1,1 +1,1 @@
-# TS2024_UKBBageEffect
+# Design and model choices shape inference of age-varying genetic effects on complex traits
