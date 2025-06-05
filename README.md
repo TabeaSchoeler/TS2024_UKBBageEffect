@@ -3,7 +3,8 @@
 
 ## 1. Preprocessing of phenotype data
 
-- [extractPheno.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/extractPheno.R)
+- **Analytical script:** [extractPheno.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/extractPheno.R)
+- All necessary functions required to run the script are included in [functions.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/functions.R)
 - Extract and recode phenotype data
 - Generate slopes of change for genome-wide tests on change
 
@@ -61,32 +62,43 @@ Parameter specifications
 - chromosome number: ``$a``
 
 #### Process the results 
-- [processGWA.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/processGWA.R)
+- **Analytical script:** [processGWA.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/processGWA.R)
 
     - generates summary statistic files
     - performs clumping to select LD-independent variants
 
-- [sumGWA.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/sumGWA.R)
+- **Analytical script:** [sumGWA.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/sumGWA.R)
 
-    - summarize clumping output for all traits and models
+    - summarizes clumping output for all traits and models
  
 ## 3. Processing of variant-specific data
 
-- [gene.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/gene.R)
+- **Analytical script:** [gene.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/gene.R)
 
   - Extract defined genetic variants for UKB participants
   - Required R-packages: [bigsnpr](https://privefl.github.io/bigsnpr/)
   - Estimate genetic effects across age-heterogeneous subgroups per variant
  
 
-## 4. Obtained age estimates and age-varying genetic effects for candidate genetic variants
+## 4. Obtain age estimates and age-varying genetic effects for candidate genetic variants
  
-- [lme.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/lme.R)
+- **Analytical script:** [lme.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/lme.R)
+
+    - Use for phenotypic analyses, including cross-sectional and longitudinal age effects, cohort effects, quadratic age effects and weighted age effects
+    - Use for genotypic analyses, including cross-sectional and longitudinal age-varying genetic effects, cohort-varying genetic effects, quadratic age-varying genetic effects and weighted age-varying genetic effects
 
 
 ## 5. Summary of the results
 
-- Script to summarize the results and generate manuscript plots: [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/summaryLongitudinal.R)
+- **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/summaryLongitudinal.R)
+
+    - Script to summarize the results and generate manuscript plots
+    - All necessary functions required to run the script are included in [summaryAgeFunc.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/summaryAgeFunc.R)
+    - All supplement tables can be generated using [createTablesAge.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/createTablesAge.R)
+
+
+
+    
 
 - Script to generate supplement tables: [createTables.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/createTables.R)
 
