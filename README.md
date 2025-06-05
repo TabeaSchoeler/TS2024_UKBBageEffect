@@ -1,6 +1,8 @@
 # Design and model choices shape inference of age-varying genetic effects on complex traits
 
-<img src="figures/framework.png" alt="Figure 2A" width="50%" style="display: block; margin: auto;" />
+<div style="text-align: center;">
+  <img src="figures/framework.png" alt="" width="80%" />
+</div>
 
 
 ## 1. Preprocessing of phenotype data
