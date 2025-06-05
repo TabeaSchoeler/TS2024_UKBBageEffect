@@ -97,8 +97,3 @@ Parameter specifications
     - All supplement tables can be generated using [createTablesAge.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/createTablesAge.R)
 
 
-
-    
-
-- Script to generate supplement tables: [createTables.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/createTables.R)
-
