@@ -70,7 +70,7 @@ Parameter specifications
 
     - summarize clumping output for all traits and models
  
-## 3. Perform variant-specific tests
+## 3. Processing of variant-specific data
 
 - [gene.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/gene.R)
 
