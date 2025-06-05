@@ -34,15 +34,6 @@ baseline=subset(dfAll, baseline=="yes")$label
 
 
 print("Read in individual-level data")
-#redIn=c(677009:677016, 
-##        676964,
-#        677171, 677172,
-#        677173, 677174,
-#        672734,
-#        21069,
- #       6881,
- #       676527, 676872)
-
 redIn=c(679895) # most recent (largest file)
 UKBBList=lapply(redIn, function(x) fread(paste0(UKBB, "/phenotypes/ukb", x, ".csv"))) # ,  nrows=10000
 names(UKBBList)=redIn
