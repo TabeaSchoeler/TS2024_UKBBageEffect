@@ -75,6 +75,7 @@ Parameter specifications
 - [gene.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/gene.R)
 
   - Extract defined genetic variants for UKB participants
+  - Required R-packages: [bigsnpr](https://privefl.github.io/bigsnpr/)
   - Estimate genetic effects across age-heterogeneous subgroups per variant
  
 
