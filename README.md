@@ -8,7 +8,7 @@
 ## 1. Preprocessing of phenotype data
 
 - **Analytical script:** [extractPheno.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/extractPheno.R)
-- All necessary functions required to run the script are included in [functions.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/functions.R)
+- All necessary functions required to run the script are included in [functions.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/functions.R)
 - Extract and recode phenotype data
 - Generate slopes of change for genome-wide tests on change
 
@@ -94,10 +94,10 @@ Parameter specifications
 
 ## 5. Summary of the results
 
-- **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/summaryLongitudinal.R)
+- **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryLongitudinal.R)
 
     - Script to summarize the results and generate manuscript plots
-    - All necessary functions required to run the script are included in [summaryAgeFunc.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/summaryAgeFunc.R)
-    - All supplement tables can be generated using [createTablesAge.R](https://github.com/TabeaSchoeler/TS2023_UKBBlongitudinal/blob/main/analysis/createTablesAge.R)
+    - All necessary functions required to run the script are included in [summaryAgeFunc.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryAgeFunc.R)
+    - All supplement tables can be generated using [createTablesAge.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/createTablesAge.R)
 
 
