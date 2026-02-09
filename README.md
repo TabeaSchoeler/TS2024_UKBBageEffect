@@ -94,7 +94,7 @@ Parameter specifications
 
 ## 5. Summary of the results
 
-- **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryLongitudinal.R)
+- **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryAge.R)
 
     - Script to summarize the results and generate manuscript plots
     - All necessary functions required to run the script are included in [summaryAgeFunc.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryAgeFunc.R)
