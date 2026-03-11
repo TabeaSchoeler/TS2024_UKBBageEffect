@@ -83,8 +83,17 @@ Parameter specifications
   - Required R-packages: [bigsnpr](https://privefl.github.io/bigsnpr/)
   - Estimate genetic effects across age-heterogeneous subgroups per variant
  
+## 4. Generate participation weights
 
-## 4. Obtain age estimates and age-varying genetic effects for candidate genetic variants
+- **Analytical script:** [bias.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/bias.R)
+- Performs generate Inverse Probability Weights to correct for selective participation in UKB follow-ups
+
+## 5. Generate polygenic scores
+
+- **Analytical script:** [pgs.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/pgs.R)
+- Generates polygenic scores to test for polygenic x age interaction effects step 6
+
+## 6. Obtain age estimates and age-varying genetic effects for candidate genetic variants
  
 - **Analytical script:** [lme.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/lme.R)
 
@@ -92,7 +101,7 @@ Parameter specifications
     - Use for genotypic analyses, including cross-sectional and longitudinal age-varying genetic effects, cohort-varying genetic effects, quadratic age-varying genetic effects and weighted age-varying genetic effects
 
 
-## 5. Summary of the results
+## 7. Summary of the results
 
 - **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryAge.R)
 
