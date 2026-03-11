@@ -19,7 +19,6 @@ for(lib in install.lib) install.packages(pkgs=lib, dependencies=TRUE)
 sapply(load.lib,require,character=TRUE)
 
 
-
 print("Read in variable names")
 variables <- as.data.frame(readxl::read_excel(paste0(HOME, "/data/variableAge.xlsx")))
 
@@ -60,54 +59,54 @@ importFiles=function(file){
 openTarget=function(df){
   snps=levels(as.factor(df$SNP))
   listG=list()
+  library(topr)
+  snp_mart <- useEnsembl( biomart = "snp",  dataset = "hsapiens_snp")
+  
   
   for (i in 1:length(snps)) {
     print(snps[i])
     s <- snps[i]
     dfLabel <- paste0(subset(df, SNP == s)$label_clean, collapse = ", ")
-    info <- NULL  # Define info outside tryCatch block
-    
-    tryCatch({
-      info <- variantInfo(s)
-      pos_GRCh37 = info$position
-      pos=geneInfo(info$nearestGene.symbol)
-      start_GRCh37=pos$start
-      end_GRCh37=pos$end
-    }, error = function(e) {
-      cat("Error occurred for snp", s, ":", conditionMessage(e), "\n")
-    })
+
+
+      chdf=subset(df, SNP == s)
+      infoA=annotate_with_nearest_gene(
+        data.frame(CHROM=chdf$CHR[1], POS=chdf$POS[1]),
+        protein_coding_only = FALSE,
+        build = 37,.chr_map = NULL)
+   
     
     # Check if info is NULL before accessing its elements
-    if (!is.null(info)) {
-      listG[[i]] <- data.frame(SNP = s, gene = info$nearestGene.symbol, pos_GRCh37, start_GRCh37, end_GRCh37)
-    } else {
-      print("Check GWA catalog")
-        info=get_associations(variant_id = s)
+    dfOut=data.frame(SNP = s, gene = infoA$Gene_Symbol, gene_cat=NA, gene_bio=NA)
+    print("Check GWA catalog")
+    info=get_associations(variant_id = s)
         
-        if(NROW(info@genes$gene_name)>0){
+      if(NROW(info@genes$gene_name)>0){
           gene_common <- names(sort(table(na.omit(info@genes$gene_name)), decreasing = TRUE))[1]
-          listG[[i]] <- data.frame(SNP = s, gene = gene_common, pos_GRCh37=NA, start_GRCh37=NA, end_GRCh37=NA)
+          if(is.null(gene_common)==TRUE){
+            dfOut$gene_cat=NA
+          }else{
+            dfOut$gene_cat=gene_common
+          }
+         
         } 
         if(NROW(info@genes$gene_name)==0){
           print("Check biomaRt")
-          snp_mart <- useEnsembl( biomart = "snp",  dataset = "hsapiens_snp")
           snp_info <- getBM( attributes = c("refsnp_id", "chr_name", "chrom_start", "allele", "associated_gene"),
             filters = "snp_filter",
             values = s, mart = snp_mart)
-          
+
           associated_genes=snp_info$associated_gene
           gene_entries <- associated_genes[associated_genes != "" & !grepl(",", associated_genes)][1]
           
           if(NROW(gene_entries)>0){
-            listG[[i]] <- data.frame(SNP = s, gene = gene_entries, pos_GRCh37=NA, start_GRCh37=NA, end_GRCh37=NA)
+            dfOut$gene_bio=gene_entries
           }
         }
+    listG[[i]] =dfOut
     }
-    
-  }
   return(do.call(rbind, listG))
-  
-}
+  }
 
 
 
@@ -129,36 +128,47 @@ revalCOL=function(var){
     revalue( as.factor(var), 
              c("within"="explained % (within-subject)", 
                "between"="explained % (between-subject)", 
-               "within_age" = "Longitudinal age effects (prospective sample)",
-               "age_snp_within" = "Longitudinal age-varying genetic effects (prospective sample)",
-               "snp_age_lme" = "Longitudinal age-varying genetic effects (prospective sample)",
-               "age_snp_between" = "Cross-sectional age-varying genetic effects (baseline sample)",
+               "within_age" = "Longitudinal age effects",
+               "within_age_complete_weights" = "Longitudinal age effects",
+               "age_snp_within" = "Longitudinal age-varying genetic effects",
+               "snp_age_lme" = "Longitudinal age-varying genetic effects",
+               "age_snp_between" = "Cross-sectional age-varying genetic effects",
                "interaction_within" = "Longitudinal",
                "interaction_between" = "Cross-sectional",
-               "age_snp_weighted" = "Cross-sectional age-varying genetic effects (weighted baseline sample)",
+               "age_snp_weighted" = "Cross-sectional age-varying genetic effects (weighted sample)",
                "snp_age2_lme" = "Non-linear age-varying genetic effects",
                "snp_cohort" = "Cohort-varying genetic effects",
                "snp_cohort2" = "Non-linear cohort-varying genetic effects",
                "within_age2_effect" = "Non-linear effect (age/cohort)",
                "non_linear_age"  = "Non-linear age effects",
                "beta_age2" = "Non-linear age effects",
-               "beta_cohort2" = "Non-linear effects (cohort)",
                "beta_cohort" = "Cohort effect", 
                "cohort" = "Cohort effect", 
                "cohort2" = "Non-linear cohort effect", 
                "beta_diff_w" = "Selective participation",
-               "between_age" = "Cross-sectional age effects (baseline sample)",
+               "between_age" = "Cross-sectional age effects",
                "between_age_FU" = "Cross-sectional age effects (prospective sample)",
-               "snp_interaction_between_lm" = "Cross-sectional age-varying genetic effects (baseline sample)",
-               "age_weighted" ="Cross-sectional age effects (weighted baseline sample)",
+               "snp_interaction_between_lm" = "Cross-sectional age-varying genetic effects",
+               "age_weighted" ="Cross-sectional age effects (weighted sample)",
+               "within_age_weighted" ="Longitudinal age effects (weighted)",
                "snp_interaction_between_FU_lm" ="Cross-sectional age-varying genetic effects (prospective sample)",
                "between_age_weighted" = "Cross-sectional age effects (weighted)",
                "between_adjusted_age2" = "Cross-sectional age effects (age^2 adjusted)",
-               "between_age2_effect" = "Age^2 effects (cross-sectional data)"))) 
+               "between_age2_effect" = "Age^2 effects (cross-sectional data)",
+               "beta_diff_fu" = "Participation bias",
+               "beta_diff_w_fu" = "Participation bias"))) 
   return(variableOutF)
  
 }
 
+
+getSlope=function(df){
+  m <- lm(outcome ~ age, data=df)
+  intercept <- coef(summary(m))[1]
+  slope <- coef(summary(m))[2]
+  dfOut=data.frame(intercept=intercept, slope=slope)
+  return(dfOut)
+}
 
 
 plotParticipation=function(df){
@@ -366,6 +376,16 @@ revalDIR=function(var){
 
 
 
+revalMR=function(var){
+  variableOutF=as.factor(
+    revalue( as.factor(var), 
+             c("change"="1. Longitudinal age-varying genetic effects", 
+               "0_interaction"="2. Cross-sectional age-varying genetic effects", 
+               "0"="3. Marginal genetic effects")))
+}
+
+
+
 
 
 scatterCOVID=function(df, pre, all, minSens, maxSens, t, colLine, letter){
@@ -472,3 +492,15 @@ scatterPart=function(df, x, y, colLine){
   return(scatterP)
 }
 
+
+
+getDil=function(df, var, dfR2){
+  print(var)
+  beta=df[[paste0("beta_", var)]]
+  beta_var=df[[paste0("vi_", var)]]
+  dil=( var(beta) - mean(beta_var) ) / var(beta)
+  dfS=subset(dfR2, predictor==paste0("beta_", var))
+  dfS$dillution=dil
+  dfS$r2_cor=dfS$r2/dil
+  return(dfS)
+}
