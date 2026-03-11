@@ -17,8 +17,9 @@ print("Copy over variable names file")
 file.copy(from=paste0(MDP, "/data/variableAge.xlsx"), to=paste0(HOME, "/data/"), overwrite = TRUE)
 
 print("Copy over result files")
-copyFiles=c("ageEff", "snpEff","clump", "direction", "apcINFO", "ageCOVID")
+copyFiles=c("ageEff", "snpEff","clump", "direction", "apcINFO", "ageCOVID", "rDil", "mr", "mrDat", "lossINFO", "snpPGS")
 cDat=lapply(copyFiles, function(x) importFiles(file=x))
+
 
 
 #########################################################################################
@@ -26,16 +27,13 @@ cDat=lapply(copyFiles, function(x) importFiles(file=x))
 #########################################################################################
 # ================== Age effect ======================
 ageEff=readRDS( paste0(HOME,"/output/rds/ageEff.rds"))
-ageEff=subset(ageEff, var!="srt_hearing")
-table(ageEff$var)
 ageEff$uCI=ageEff$beta + 1.96 * ageEff$se
 ageEff$lCI=ageEff$beta - 1.96 * ageEff$se
 ageEffC=recodeLabel(df=ageEff, mergeBy="var")
 ageEff$l_clean =ageEffC$label_clean
 ageEff$typeC=revalCOL(var=ageEff$type)
 ageEff$colour <- factor(ageEff$typeC, labels = 
-                          c("darkblue",  "steelblue3", "darkgreen", "cyan4", "darkorange3",  "palevioletred4"))
-
+                          c("darkblue",  "steelblue3", "darkgreen", "cyan4", "darkorange3",  "palevioletred4", "#bc4f5e"))
 
 mOrder=data.frame(var=levels(as.factor(ageEff$var)), ID=seq(1,NROW(levels(as.factor(ageEff$var))), 1))
 mOrderL=recodeLabel(df=mOrder, mergeBy="var")
@@ -102,16 +100,21 @@ agePlotP4
 
 
 # correlations
-d1=subset(ageEff, type %in% c("age_weighted"), select=c(beta, var)); d1$beta_weighted=d1$beta;d1$beta=NULL
-d2=subset(ageEff, type %in% c("within_age"), select=c(beta, var)); d2$beta_within=d2$beta;d2$beta=NULL
-d3=subset(ageEff, type %in% c("between_age"), select=c(beta, var)); d3$beta_between=d3$beta;d3$beta=NULL
-d4=subset(ageEff, type %in% c("cohort"), select=c(beta, var)); d4$beta_cohort=d4$beta;d4$beta=NULL
-d5=subset(ageEff, type %in% c("between_age_FU"), select=c(beta, var)); d5$beta_between_FU=d5$beta;d5$beta=NULL
-d6=subset(ageEff, type %in% c("non_linear_age"), select=c(beta, var)); d6$beta_age2=d6$beta;d6$beta=NULL
+ageEff$vi=ageEff$se^2 # get variance
+d1=subset(ageEff, type %in% c("age_weighted"), select=c(beta, vi, var)); d1$beta_weighted=d1$beta;d1$beta=NULL;d1$vi_weighted=d1$vi;d1$vi=NULL
+d2=subset(ageEff, type %in% c("within_age"), select=c(beta, vi, var)); d2$beta_within=d2$beta;d2$beta=NULL;d2$vi_within=d2$vi;d2$vi=NULL
+d3=subset(ageEff, type %in% c("between_age"), select=c(beta, vi, var)); d3$beta_between=d3$beta;d3$beta=NULL;d3$vi_between=d3$vi;d3$vi=NULL
+d4=subset(ageEff, type %in% c("cohort"), select=c(beta, vi, var)); d4$beta_cohort=d4$beta;d4$beta=NULL;d4$vi_cohort=d4$vi;d4$vi=NULL
+d5=subset(ageEff, type %in% c("between_age_FU"), select=c(beta, vi, var)); d5$beta_between_FU=d5$beta;d5$beta=NULL;d5$vi_between_FU=d5$vi;d5$vi=NULL
+d6=subset(ageEff, type %in% c("non_linear_age"), select=c(beta, vi, var)); d6$beta_age2=d6$beta;d6$beta=NULL;d6$vi_age2=d6$vi;d6$vi=NULL
 
 ageComb <- Reduce(function(x, y) merge(x, y, by = "var", all = TRUE), list(d1, d2, d3, d4, d5, d6))
 ageComb$beta_diff=ageComb$beta_within - ageComb$beta_between
 ageComb$beta_diff_w_fu=ageComb$beta_weighted - ageComb$beta_between_FU
+rDil=readRDS( paste0(HOME,"/output/rds/rDil.rds"))
+corW=as.numeric(rDil$estimate)
+ageComb$vi_diff_w_fu    <-  ageComb$vi_weighted + ageComb$vi_between_FU - 2 * corW * sqrt(ageComb$vi_weighted) * sqrt(ageComb$vi_between_FU)
+
 
 # R2 per predictor
 m3=lm(beta_diff ~ beta_age2 + beta_cohort + beta_diff_w_fu, data=ageComb)
@@ -131,6 +134,8 @@ colR2=c("lightgrey","cyan4","darkorange3", "darkblue")
 dfR2m=merge(dfR2, discDF, by="predictor", all.x=TRUE)
 saveRDS(dfR2m, paste0(HOME, "/output/rds/expR2pheno.rds"))
 
+
+# Plot R2
 dfR2$labelT=ifelse(dfR2$r2<0.01, "", dfR2$labelT)
 R2Plot <- ggplot(dfR2, aes(x = group, y = r2 * 100, fill = predictor)) +
   geom_bar(stat = "identity") +
@@ -246,11 +251,12 @@ freqGene <- ggplot(freqPhenoC, aes(x = reorder(label_clean, -abs(n)), y = n, fil
         legend.position = "top",
         plot.margin = margin(t = 0, r = 0, b = 0, l = 2, "cm"))  + ggtitle("B")
 
-saveFigure(fileName=paste0(HOME,"/results/figures/freqGene"), plotName=freqGene, w=25, h=14 )
+saveFigure(fileName=paste0(HOME,"/results/figures/freqGene"), plotName=freqGene, w=22, h=12 )
+
 
 
 #########################################################################################
-# ======================= SOUCES OF BIAS (GENETIC ANALYSES) =============================
+# ============================ SOUCES OF BIAS (SNP LEVEL) ===============================
 #########################################################################################
 snpEff=readRDS( paste0(HOME,"/output/rds/snpEff.rds"))
 snpEff$uCI=snpEff$beta + 1.96 * snpEff$se
@@ -300,7 +306,7 @@ snpPlotP2 <- ggplot(snpEffP2, aes(x = beta, y =fct_reorder(label_cleanN, -ID), c
   facet_grid(rows = vars(ID), scales = "free_y", space = "free_y") +
   guides(color = guide_legend(nrow = 2), alpha = "none" ) +
   ggtitle("Model B3")   +
-  labs(subtitle = "Cohort-varying genetic effects") 
+  labs(subtitle = "Year of birth-varying genetic effects") 
  
 
 # Plot 3: Non-linear age-varying genetic effects
@@ -334,17 +340,20 @@ snpPlotP4 <- ggplot(snpEffP4, aes(x = beta, y =fct_reorder(label_cleanN, -ID), c
 
 
 # Explained variance in effect size differences
-d1=subset(snpEff, type %in% c("age_snp_weighted"), select=c(beta, var_snp)); d1$beta_weighted=d1$beta;d1$beta=NULL
-d2=subset(snpEff, type %in% c("snp_age_lme"), select=c(beta, var_snp)); d2$beta_within=d2$beta;d2$beta=NULL
-d3=subset(snpEff, type %in% c("snp_interaction_between_lm"), select=c(beta, var_snp)); d3$beta_between=d3$beta;d3$beta=NULL
-d4=subset(snpEff, type %in% c("snp_cohort"), select=c(beta, var_snp)); d4$beta_cohort=d4$beta;d4$beta=NULL
-d6=subset(snpEff, type %in% c("snp_age2_lme"), select=c(beta, var_snp)); d6$beta_age2=d6$beta;d6$beta=NULL
-d7=subset(snpEff, type %in% c("snp_interaction_between_FU_lm"), select=c(beta, var_snp)); d7$beta_between_FU=d7$beta;d7$beta=NULL
+snpEff$vi=snpEff$se^2 # get variance
+d1=subset(snpEff, type %in% c("age_snp_weighted"), select=c(beta, vi, var_snp)); d1$beta_weighted=d1$beta;d1$beta=NULL;d1$vi_weighted=d1$vi;d1$vi=NULL
+d2=subset(snpEff, type %in% c("snp_age_lme"), select=c(beta, vi, var_snp)); d2$beta_within=d2$beta;d2$beta=NULL;d2$vi_within=d2$vi;d2$vi=NULL
+d3=subset(snpEff, type %in% c("snp_interaction_between_lm"), select=c(beta, vi, var_snp)); d3$beta_between=d3$beta;d3$beta=NULL;d3$vi_between=d3$vi;d3$vi=NULL
+d4=subset(snpEff, type %in% c("snp_cohort"), select=c(beta, vi, var_snp)); d4$beta_cohort=d4$beta;d4$beta=NULL;d4$vi_cohort=d4$vi;d4$vi=NULL
+d5=subset(snpEff, type %in% c("snp_interaction_between_FU_lm"), select=c(beta, vi, var_snp)); d5$beta_between_FU=d5$beta;d5$beta=NULL;d5$vi_between_FU=d5$vi;d5$vi=NULL
+d6=subset(snpEff, type %in% c("snp_age2_lme"), select=c(beta, vi, var_snp)); d6$beta_age2=d6$beta;d6$beta=NULL;d6$vi_age2=d6$vi;d6$vi=NULL
 
 # Combine
-snpComb <- Reduce(function(x, y) merge(x, y, by = "var_snp", all = TRUE), list(d1, d2, d3, d4, d6, d7))
+snpComb <- Reduce(function(x, y) merge(x, y, by = "var_snp", all = TRUE), list(d1, d2, d3, d4, d5, d6))
 snpComb$beta_diff=snpComb$beta_within-snpComb$beta_between
 snpComb$beta_diff_fu=snpComb$beta_weighted-snpComb$beta_between_FU
+snpComb$vi_diff_fu    <-  snpComb$vi_weighted + snpComb$vi_between_FU - 2 * corW * sqrt(snpComb$vi_weighted) * sqrt(snpComb$vi_between_FU)
+
 
 # R2 per predictor
 m3_snp=lm(beta_diff ~ beta_age2 + beta_cohort + beta_diff_fu, data=snpComb)
@@ -367,7 +376,6 @@ discGeneDF=as.data.frame(coef(summary(mDiscGeneSTD)))
 discGDF=data.frame(predictor=rownames(discGeneDF), beta_std=discGeneDF$Standardized, P=discGeneDF$`Pr(>|t|)`)
 dfR2Genem=merge(dfR2snp, discGDF, by="predictor", all.x=TRUE)
 saveRDS(dfR2Genem, paste0(HOME, "/output/rds/expR2geno.rds"))
-
 
 R2Plot_snp <- ggplot(dfR2snp, aes(x = group, y = r2 * 100, fill = predictorC)) +
   geom_bar(stat = "identity") +
@@ -397,7 +405,7 @@ R2Plot_snp
 
 # ===== FIGURE 5
 snpCombine <- snpPlotP1 + snpPlotP2 + snpPlotP3  + snpPlotP4 + R2Plot_snp + plot_layout(ncol = 5, widths = c(1.2, 1, 1,1, 0.3))
-saveFigure(fileName=paste0(HOME,"/results/figures/geneAgeBias"), plotName=snpCombine, w=50, h=55 )
+saveFigure(fileName=paste0(HOME,"/results/figures/geneAgeBias"), plotName=snpCombine, w=48, h=40 )
 
 
 ###################################################################################
@@ -416,13 +424,14 @@ dirSumA=do.call(rbind, dirSumL)
 saveRDS(dirSumA, paste0(HOME,"/output/rds/dirSum.rds"))
 
 # Plot intensification effects
+
 snpIntensification=levels(droplevels(as.factor(subset(dirSumA, direction=="intensification")$label_merge)))
-plotInteL=lapply(c("insomnia_rs113851554", "weight_rs429358"), function(x) getDirection(snp=x, dfD=directionDF, return="plot", topM=1, bottom=0, bg="blue4"))
+plotInteL=lapply(c("reaction_time_rs181003402", "insomnia_rs113851554"), function(x) getDirection(snp=x, dfD=directionDF, return="plot", topM=1, bottom=0, bg="blue4"))
 plotInt=ggarrange(plotlist=plotInteL, nrow=1, ncol=2, common.legend = TRUE,   legend = "top")
 
 # Plot attenuation effects
 snpAtten=levels(droplevels(as.factor(subset(dirSumA, direction=="attenuation")$label_merge)))
-plotAttenL=lapply(c("basal_metabolic_rate_rs3132956", "body_fat_free_mass_rs374892365"), function(x) getDirection(snp=x, dfD=directionDF, return="plot", legend="none", bg="aquamarine4"))
+plotAttenL=lapply(c("bmi_rs6751993", "body_fat_free_mass_rs374892365"), function(x) getDirection(snp=x, dfD=directionDF, return="plot", legend="none", bg="aquamarine4"))
 plotAtten=ggarrange(plotlist=plotAttenL, nrow=1, ncol=2)
 
 # Plot crossover effects
@@ -432,8 +441,9 @@ plotCOc=ggarrange(plotlist=plotCOL, nrow=1, ncol=2)
 
 # Plot incosistent effects
 snpDiscrepant=levels(droplevels(as.factor(subset(dirSumA, direction=="inconsistent")$label_merge)))
-plotDisL=lapply(c("height_rs6871143", "number_medication_rs55730499"), function(x) getDirection(snp=x, dfD=directionDF, return="plot", legend="none", bg="lightcoral"))
+plotDisL=lapply(c("overall_health_rs112054368", "number_medication_rs55730499"), function(x) getDirection(snp=x, dfD=directionDF, return="plot", legend="none", bg="lightcoral"))
 plotDisc=ggarrange(plotlist=plotDisL, nrow=1, ncol=2)
+
 
 # Plot summary of direction of interactions for all phenotype=genotype associations
 dirSumA$typeC=revalDIR(var= dirSumA$direction)
@@ -471,6 +481,224 @@ saveFigure(fileName=paste0(HOME,"/results/figures/directionPlot"), plotName=dire
 # =================================================== SUPPLEMENT FIGURES ========================================================
 
 
+#########################################################################################
+# =================== SUPPLEMENT: POLYGENIC SCORE INTERACTIONS ==========================
+#########################################################################################
+snpPGS=readRDS( paste0(HOME,"/output/rds/snpPGS.rds"))
+snpPGS$r2_perd=round(snpPGS$r2*100, 2)
+snpPGS$uCI=snpPGS$beta + 1.96 * snpPGS$se
+snpPGS$lCI=snpPGS$beta - 1.96 * snpPGS$se
+snpPGS$alpha=ifelse(snpPGS$P < 0.05, 1, 0.5)
+snpPGSL=recodeLabel(df=snpPGS, mergeBy="var")
+snpPGS$label_clean=snpPGSL$label_clean
+snpPGS$label=paste0(snpPGS$SNP, "_", snpPGS$var, "_", snpPGS$type)
+snpPGS$snp_var=paste0(snpPGS$SNP, "_", snpPGS$var)
+nSNPsFDR=length(levels(as.factor(paste0(snpPGS$SNP, "_", snpPGS$var))))
+snpPGS$p_fdr= do.call(rbind, lapply(snpPGS$P, function(x) p.adjust(x, "bonferroni",  nSNPsFDR )))
+snpPGS$type <- factor(snpPGS$type, levels = c("snp_interaction_between_lm","snp_age2_lme", "age_snp_weighted", "snp_interaction_between_FU_lm","snp_cohort", "snp_age_lme"))
+snpPGS$typeC=revalCOL(var=as.factor(snpPGS$type))
+snpPGS$colour <- factor(snpPGS$typeC, labels =  c( "steelblue3", "darkorange3", "darkblue", "darkgreen","cyan4", "palevioletred4"))
+mOrderG=data.frame(var=levels(as.factor(snpPGS$var)), ID=seq(1,NROW(levels(as.factor(snpPGS$var))), 1))
+mOrderGL=recodeLabel(df=mOrderG, mergeBy="var")
+mOrderG$label_clean =mOrderGL$label_clean
+
+# Plot 1: Gene-by-age effects (cross-sectional versus longitudinal estimates)
+snpPGSP1=merge(mOrderG, subset(snpPGS, type %in% c("snp_age_lme", "snp_interaction_between_lm")), by="var", all.x=TRUE, suffixes = c("", "_rem"))
+mergeVar=subset(snpPGSP1, select=c(ID, var, label_clean))
+
+pgsPlotP1 <- ggplot(snpPGSP1, aes(x = beta, y =fct_reorder(label_clean, -ID), colour=typeC, alpha=alpha, xmin = lCI, xmax = uCI)) +
+  geom_pointrange(aes(xmin = lCI, xmax = uCI), size = 1) +
+  scale_colour_manual("",values = levels(droplevels(snpPGSP1$colour)), label=levels(droplevels(snpPGSP1$typeC)) ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") +
+  labs(x = expression(paste( delta[CS], " / ",   delta[L])), y = "Phenotype", color = "Variable", y = NULL) +
+  theme_minimal() +
+  themeAll +
+  guides(color = guide_legend(nrow = 2), alpha = "none" ) +
+  ggtitle("Model B1/B2")  +
+  labs(subtitle = "Age-varying polygenetic effects") 
+
+# Plot 2: Cohort-varying genetic effects
+snpPGSP2=merge(mergeVar, subset(snpPGS, type %in% c("snp_cohort")), by="var", all.x=TRUE, suffixes = c("", "_rem"))
+pgsPlotP2 <- ggplot(snpPGSP2, aes(x = beta, y =fct_reorder(label_clean, -ID), colour=typeC, alpha=alpha, xmin = lCI, xmax = uCI)) +
+  geom_pointrange(size = 1) +
+  scale_colour_manual("",values = levels(droplevels(snpPGSP2$colour)), label=levels(droplevels(snpPGSP2$typeC)) ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") + 
+  labs(x = expression(paste( delta[C] )), y = "", color = "") +
+  themeAge +
+  themeAll+
+  guides(color = guide_legend(nrow = 2), alpha = "none" ) +
+  ggtitle("Model B3")   +
+  labs(subtitle = "Year of birth-varying polygenetic effects") 
+pgsPlotP2
+
+# Plot 3: Non-linear age-varying genetic effects
+snpPGSP3=merge(mergeVar, subset(snpPGS, type %in% c("snp_age2_lme")), by="var", all.x=TRUE, suffixes = c("", "_rem"))
+pgsPlotP3 <- ggplot(snpPGSP3, aes(x = beta, y =fct_reorder(label_clean, -ID), colour=typeC, alpha=alpha, xmin = lCI, xmax = uCI)) +
+  geom_pointrange(size = 1) +
+  scale_colour_manual("",values = levels(droplevels(snpPGSP3$colour)), label=levels(droplevels(snpPGSP3$typeC)) ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") + 
+  labs(x = expression(paste( delta[Q] )), y = "Phenotype", color = "Variable", , y = NULL) +
+  themeAge +
+  themeAll+
+  guides(color = guide_legend(nrow = 2), alpha = "none" ) +
+  ggtitle("Model B4")  +
+  labs(subtitle = "Non-linear age-varying polygenetic effects") 
+pgsPlotP3
+
+# Plot 4: Weighted cross-sectional age effects
+snpPGSP4=merge(mergeVar, subset(snpPGS, type %in% c("snp_interaction_between_lm", "age_snp_weighted", "snp_interaction_between_FU_lm")), by="var", all.x=TRUE, suffixes = c("", "_rem"))
+pgsPlotP4 <- ggplot(snpPGSP4, aes(x = beta, y =fct_reorder(label_clean, -ID), colour=typeC, alpha=alpha, xmin = lCI, xmax = uCI)) +
+  geom_pointrange(size = 1) +
+  scale_colour_manual("",values = levels(droplevels(snpPGSP4$colour)), label=levels(droplevels(snpPGSP4$typeC)) ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") +  
+  labs(x = expression(paste( delta[W], " / ", delta[CS] )), y = "Phenotype", color = "Variable",  y = NULL) +
+  themeAge +
+  themeAll+
+  guides(color = guide_legend(nrow = 3), alpha = "none") +
+  ggtitle("Model B5") +
+  labs(subtitle = "Participation effects")
+pgsPlotP4
+
+# Explained variance in effect size differences
+snpPGS$vi=snpPGS$se^2 # get variance
+d1=subset(snpPGS, type %in% c("age_snp_weighted"), select=c(beta, vi, var)); d1$beta_weighted=d1$beta;d1$beta=NULL;d1$vi_weighted=d1$vi;d1$vi=NULL
+d2=subset(snpPGS, type %in% c("snp_age_lme"), select=c(beta, vi, var)); d2$beta_within=d2$beta;d2$beta=NULL;d2$vi_within=d2$vi;d2$vi=NULL
+d3=subset(snpPGS, type %in% c("snp_interaction_between_lm"), select=c(beta, vi, var)); d3$beta_between=d3$beta;d3$beta=NULL;d3$vi_between=d3$vi;d3$vi=NULL
+d4=subset(snpPGS, type %in% c("snp_cohort"), select=c(beta, vi, var)); d4$beta_cohort=d4$beta;d4$beta=NULL;d4$vi_cohort=d4$vi;d4$vi=NULL
+d5=subset(snpPGS, type %in% c("snp_interaction_between_FU_lm"), select=c(beta, vi, var)); d5$beta_between_FU=d5$beta;d5$beta=NULL;d5$vi_between_FU=d5$vi;d5$vi=NULL
+d6=subset(snpPGS, type %in% c("snp_age2_lme"), select=c(beta, vi, var)); d6$beta_age2=d6$beta;d6$beta=NULL;d6$vi_age2=d6$vi;d6$vi=NULL
+
+# Combine
+pgsComb <- Reduce(function(x, y) merge(x, y, by = "var", all = TRUE), list(d1, d2, d3, d4, d5, d6))
+pgsComb$beta_diff=pgsComb$beta_within-pgsComb$beta_between
+pgsComb$beta_diff_fu=pgsComb$beta_weighted-pgsComb$beta_between_FU
+pgsComb$vi_diff_fu    <-  pgsComb$vi_weighted + pgsComb$vi_between_FU - 2 * corW * sqrt(pgsComb$vi_weighted) * sqrt(pgsComb$vi_between_FU)
+
+
+# R2 per predictor
+m3_pgs=lm(beta_diff ~ beta_age2 + beta_cohort + beta_diff_fu, data=pgsComb)
+as.data.frame(coef(summary(m3_pgs)))
+rel_imp_pgs <- relaimpo::calc.relimp(m3_pgs, type = "lmg") # Lindeman, Merenda & Gold method
+dfR2pgs=data.frame(r2=rel_imp_pgs@lmg)
+totVarPGS=round(sum(dfR2pgs$r2)*100, 2)
+dfR2pgs$predictor=rownames(dfR2pgs)
+dfR2pgs$labelT=paste0(round(dfR2pgs$r2 * 100, 1), "%")
+r2AddR <- data.frame( r2 = (100-totVarPGS)/100, predictor = "missing_var", labelT="Missing")
+dfR2pgs <- rbind(dfR2pgs, r2AddR)
+dfR2pgs$predictor <- factor(dfR2pgs$predictor, levels = c("missing_var", "beta_cohort", "beta_age2","beta_diff_w", "beta_diff_fu"))
+dfR2pgs$predictorC=as.factor(revalCOL(var=dfR2pgs$predictor))
+dfR2pgs$group=1
+levels(dfR2pgs$predictorC)
+colR2=c("lightgrey", "cyan4", "darkorange2", "darkblue", "darkgreen")
+
+mDiscPGSSTD <- lm.beta::lm.beta(m3_pgs)
+discPGSDF=as.data.frame(coef(summary(mDiscPGSSTD)))
+discPDF=data.frame(predictor=rownames(discPGSDF), beta_std=discPGSDF$Standardized, P=discPGSDF$`Pr(>|t|)`)
+dfR2PGSm=merge(dfR2pgs, discPDF, by="predictor", all.x=TRUE)
+saveRDS(dfR2PGSm, paste0(HOME, "/output/rds/expR2pgs.rds"))
+
+R2Plot_pgs <- ggplot(dfR2pgs, aes(x = group, y = r2 * 100, fill = predictorC)) +
+  geom_bar(stat = "identity") +
+  labs(title = "",
+       x = "",
+       y = "Explained variance (%)") +
+  theme_minimal() +
+  scale_fill_manual("", values = colR2) +
+  geom_text(aes(label = labelT),
+            position = position_stack(vjust = 0.5),
+            size = 5,
+            color = "white") +
+  scale_y_continuous(position = "right") +  # Moves axis labels, ticks, and title to the right
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text.x = element_blank(),
+        panel.grid.major.x = element_blank(), # Remove vertical grid lines
+        panel.grid.minor.x = element_blank(),
+        axis.title.y = element_text(hjust = 0.5),
+        axis.text.y = element_text(hjust = 0)) +
+  ggtitle("Relative \ncontribution") 
+
+R2Plot_pgs
+
+# ===== SUPPLEMENT FIGURE
+pgsCombine <- pgsPlotP1 + pgsPlotP2 + pgsPlotP3  + pgsPlotP4 + R2Plot_pgs + plot_layout(ncol = 5, widths = c(1.2, 1, 1,1, 0.3))
+saveFigure(fileName=paste0(HOME,"/results/figures/pgsAgeBias"), plotName=pgsCombine, w=45, h=25 )
+
+
+#########################################################################################
+# ========================= SUPPLEMENT: LONGITUDINAL IPW  ===============================
+#########################################################################################
+
+# ======= Cross-sectional models
+crosssecIPW=merge(mOrder, subset(ageEff, type %in% c("between_age", "age_weighted")), by="var", all.x=TRUE)
+crossIPWplot <- ggplot(crosssecIPW, aes(x = beta, y =fct_reorder(label_clean, -ID), colour=typeC)) +
+  geom_line(colour="black") +
+  geom_pointrange(aes(xmin = lCI, xmax = uCI), size = 1) +
+  scale_colour_manual("",values = levels(droplevels(crosssecIPW$colour)), label=levels(droplevels(crosssecIPW$typeC)) ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") + 
+  labs(x = expression(paste( beta[W], " / ", beta )), y = "Phenotype", color = "Variable", y = NULL) +
+  theme_minimal() +
+  themeAll +
+  guides(color = guide_legend(nrow = 2)) +
+  ggtitle("A")  +
+  labs(subtitle = "Participation effects (cross-sectional)") 
+
+# ======= Longitudinal models
+longIPW=merge(mOrder, subset(ageEff, type %in% c("within_age_complete_weights", "within_age_weighted")), by="var", all.x=TRUE) 
+# note: within_age => all individuals with longitudinal data; within_age_complete_weights = individuals with both longitudinal data and sampling weigths (used here to ensure comparability)
+longIPWplot <- ggplot(longIPW, aes(x = beta, y =fct_reorder(label_clean, -ID), colour=typeC)) +
+  geom_line(colour="black") +
+  geom_pointrange(aes(xmin = lCI, xmax = uCI), size = 1) +
+  scale_colour_manual("",values = levels(droplevels(longIPW$colour)), label=levels(droplevels(longIPW$typeC)) ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") +  # Reference line at beta = 0
+  labs(x = expression(paste( beta[W], " / ", beta )), y = "Phenotype", color = "Variable",  y = NULL) +
+  themeAge +
+  themeAll +
+  guides(color = guide_legend(nrow = 3)) +
+  ggtitle("B") +
+  labs(subtitle = "Participation effects (longitudinal)") 
+longIPWplot
+
+IPW_diff <- subset(ageEff, type %in% c( "between_age", "age_weighted", "within_age", "within_age_weighted")) %>%
+  dplyr::select(var, type, beta) %>%
+  tidyr::pivot_wider(names_from = type, values_from = beta) %>%
+  dplyr::mutate(diff_long =
+                  within_age - within_age_weighted) %>%
+  dplyr::mutate(diff_cross =
+                  between_age - age_weighted)
+
+IPW_diffL=data.frame(type=c(rep("diff_long", NROW(IPW_diff)), rep("diff_cross", NROW(IPW_diff))),
+                     beta=c(IPW_diff$diff_long, IPW_diff$diff_cross),
+                     var=c(IPW_diff$var, IPW_diff$var))
+IPW_diffo=merge(mOrder, IPW_diffL, by="var", all.x=TRUE)
+IPW_diffo$typeC=revalCOL(var=IPW_diffo$type)
+saveRDS(IPW_diffo,  paste0(HOME,"/output/rds/ageW.rds"))
+
+
+diffIPWplot <- ggplot(
+  IPW_diffo, aes( x = beta, y = fct_reorder(label_clean, -ID), fill = type, colour = type)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") +
+  geom_col(position = position_dodge(width = 0.75),  linewidth = 0.9 ) +
+  scale_colour_manual(values = c(diff_long  = "#470a0a", diff_cross = "darkblue")) +
+  scale_fill_manual("", values = c(diff_long  = "#bc4f5e", diff_cross = "steelblue3"),   labels = c(
+    diff_long  = "Longitudinal model",
+    diff_cross = "Cross-sectional model"
+  )) +
+  labs(x = expression(paste(beta, " - ", beta[W])), y = NULL, colour = "Type") +
+  themeAge +
+  themeAll +
+  ggtitle("C") +
+  labs(subtitle = "Differences between unweighted and weighted effect estimates") + guides( colour = "none" )
+diffIPWplot
+
+# ======= COMBINED FIGURE
+IPWplot <- crossIPWplot + longIPWplot + diffIPWplot+ plot_layout(ncol = 3, widths = c(1.2, 1.2, 1.2))
+saveFigure(fileName=paste0(HOME,"/results/figures/IPWplot"), plotName=IPWplot, w=40, h=25 )
+
+
 ###################################################################################
 # =================== Plot participation differences ==============================
 ###################################################################################
@@ -495,6 +723,121 @@ scatterPartSum=ggarrange(scatterPartB, scatterPartB_FU, scatterPartW_FU, ncol=3,
 saveFigure(fileName=paste0(HOME,"/results/figures/partPlot"), plotName=scatterPartSum, w=30, h=10 )
 
 
+#########################################################################################
+# ============================ Mendelian Randomization =================================
+#########################################################################################
+
+# Mendelian Randomization Results
+library(TwoSampleMR)
+mr=readRDS( paste0(HOME,"/output/rds/mr.rds"))
+mrEXP=recodeLabel(df=mr, mergeBy="exposure")
+mr$exp_clean=mrEXP$label_clean
+mrOUT=recodeLabel(df=mr, mergeBy="outcome")
+mr$out_clean=mrOUT$label_clean
+mr$path=paste0(mr$exp_clean, " --> ", mr$out_clean, " (", mr$model, ")")
+mr$model_c=revalMR(mr$model)
+mrCol=c("darkgrey", "steelblue3", "palevioletred4")
+
+
+
+plotMR=function(exp, out, m){
+  if(m=="change"){
+    c="palevioletred4"
+  }
+  if(m=="0_interaction"){
+    c="steelblue3"
+  }
+  if(m=="0"){
+    c="darkgrey"
+  }
+  
+  mr_results=subset(mr, exposure==exp & outcome==out & model==m)
+  dat=subset(mrDat, exposure==exp & outcome==out & model==m)
+  dat$model_c=revalMR(dat$model)
+  l=dat$model_c[1]
+  
+  mrRes=ggplot(mr_results, aes(x = b, y = model_c, colour=model_c)) +
+    geom_point(size = 3) +
+    geom_errorbarh(aes(xmin = lCI, xmax = uCI), height = 0.2) +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    geom_label(
+      aes(label = sprintf("%.2f", b)),
+      nudge_y = 0.1,
+      size = 3,
+      label.size = 0.2,
+      show.legend = FALSE
+    )  +
+    theme_minimal() +
+    xlim(0, 0.5) +
+    scale_colour_manual("", values = c) +
+    theme(legend.position = "none",
+          plot.margin = margin(t = 0, r = 1, b = 0, l = 0, "cm"),
+          axis.text.y = element_blank(),
+          axis.title.y = element_blank(),
+          axis.title.x = element_blank())
+  #p=mr_scatter_plot(mr_results, dat)
+  #print(p)
+  mrRes
+  combos <- unique(dat[, c("id.exposure", "id.outcome")])
+  
+  mrres <- lapply(seq_len(nrow(combos)), function(i) {
+    d <- dat[dat$id.exposure == combos$id.exposure[i] & dat$id.outcome == combos$id.outcome[i], ]
+    d <- subset(d, mr_keep)
+    index <- d$beta.exposure < 0
+    d$beta.exposure[index] <- d$beta.exposure[index] * -1
+    d$beta.outcome[index] <- d$beta.outcome[index] * -1
+    mrres <- subset(
+      mr_results,
+      id.exposure == d$id.exposure[1] & id.outcome == d$id.outcome[1]
+    )
+    mrres$a <- 0
+    
+    ggplot2::ggplot( data = d, aes(x = beta.exposure, y = beta.outcome)) +
+      geom_errorbar(aes(ymin = beta.outcome - se.outcome,
+                        ymax = beta.outcome + se.outcome),
+                    colour = "grey",
+                    width = 0) +
+      geom_errorbar(aes(xmin = beta.exposure - se.exposure,
+                        xmax = beta.exposure + se.exposure),
+                    colour = "grey",
+                    width = 0,
+                    orientation = "y") +
+      geom_point(colour = c) +
+      geom_abline(data = mrres, colour = c, size=1, aes(intercept = a, slope = b), show.legend = TRUE) +
+      labs(x = paste("Exposure (BMI)"), y = paste("Outcome (SBP)")) + theme_minimal() +
+      theme(legend.direction = "vertical",
+            legend.position = "none",
+            strip.text.x = element_blank()) + guides(colour = ggplot2::guide_legend(ncol = 2))
+  })
+  
+  mrOut=ggarrange(mrRes, mrres[[1]], ncol=2, widths = c(1, 1.2))
+  
+  mrOut = annotate_figure(
+    mrOut,
+    top = text_grob(l, size = 12)
+  )
+  
+  print(mrOut)
+  return(mrOut)
+}
+
+mrDat=readRDS( paste0(HOME,"/output/rds/mrDat.rds"))
+mrP1=plotMR(exp="bmi", out="SBP", m="change")
+mrP2=plotMR(exp="bmi", out="SBP", m="0_interaction")
+mrP3=plotMR(exp="bmi", out="SBP", m="0")
+
+mrComb <- ggarrange(
+  mrP1,
+  mrP2,
+  mrP3,
+  nrow = 3,
+  ncol = 1
+)
+
+saveFigure(fileName=paste0(HOME,"/results/figures/mrPlot"), plotName=mrComb, w=17, h=20 )
+
+
+
 # =============================================================
 # ========== Scatter plot (consistency of effects) ============
 # =============================================================
@@ -502,7 +845,6 @@ m1=subset(snpEff, type=="snp_interaction_between_lm", select=c(var,SNP, beta, la
 m2=subset(snpEff, type=="snp_age_lme", select=c(beta, snp_var ))
 clumpW=merge(m1, m2, by="snp_var",  suffixes = c("_b", "_w") )
 clumpW$identification=ifelse(sign(clumpW$beta_b)==sign(clumpW$beta_w),"consistent", "inconsistent")
-
 clumpW$beta_gene_diff <- abs(clumpW$beta_b - clumpW$beta_w)
 top10 <- clumpW[order(-clumpW$beta_gene_diff), ][1:10, ]
 
@@ -636,11 +978,86 @@ manH
 saveFigure(fileName=paste0(HOME,"/results/figures/manH"), plotName=manH, h=10, w=13)
 
 
+# =======================================================================
+# ======================== REGRESSION DILUTION ==========================
+# =======================================================================
+# ============== Phenotype results ===================
+cohortDil=getDil(df=ageComb, dfR2=dfR2, var="cohort")
+age2Dil=getDil(df=ageComb, dfR2=dfR2, var="age2")
+partDil=getDil(df=ageComb, dfR2=dfR2, var="diff_w_fu")
+sumDilpheno=rbind(cohortDil, age2Dil, partDil)
+sumDilpheno$r2_scaled <- sumDilpheno$r2_cor / sum(sumDilpheno$r2_cor)
+sumDilpheno$r2_cor=sumDilpheno$r2_scaled 
+sumDilpheno$predictor=paste0(sumDilpheno$predictor, "_pheno")
+sumDilpheno$type="1_pheno"
+
+# ============== Genotype results ===================
+cohortDilgeno=getDil(df=snpComb, dfR2=dfR2Genem, var="cohort")
+age2Dilgeno=getDil(df=snpComb, dfR2=dfR2Genem, var="age2")
+partDilgeno=getDil(df=snpComb, dfR2=dfR2Genem, var="diff_fu")
+sumDilgeno=rbind(cohortDilgeno, age2Dilgeno, partDilgeno)
+sumDilgeno$predictor=paste0(sumDilgeno$predictor, "_geno")
+
+sumDilgeno$r2_scaled <- sumDilgeno$r2_cor / sum(sumDilgeno$r2_cor)
+sumDilgeno$r2_cor=sumDilgeno$r2_scaled 
+sumDilgeno$type="2_geno"
+sumDil=rbind(subset(sumDilpheno, select=c(predictor, r2, dillution, r2_cor, type)), subset(sumDilgeno, select=c(predictor, r2, dillution, r2_cor, type)))
+
+saveRDS(sumDilgeno, paste0(HOME, "/output/rds/dilution.rds"))
+
+
+# Combine
+sumDil_long <- sumDil %>% pivot_longer(cols = c(r2, r2_cor),  names_to = "Correction",  values_to = "R2") %>%
+  mutate( Correction = recode(Correction, r2 = "Uncorrected", r2_cor = "Corrected"), label = paste0("λ = ", round(dillution, 3)))
+
+predictor_order <- c("beta_cohort_pheno", "beta_cohort_geno", "beta_diff_w_fu_pheno", "beta_diff_fu_geno", "beta_age2_pheno", "beta_age2_geno")
+
+sumDil_long <- sumDil_long %>% mutate(type = forcats::fct_recode(type,  "Genotypic analyses" = "2_geno", "Phenotypic analyses" = "1_pheno"),
+                                      type = forcats::fct_rev(type),
+                                      Correction = forcats::fct_rev(Correction),
+                                      predictor = factor(predictor, levels = predictor_order))
+
+math_labels <- c(
+  "beta_cohort_pheno"       = expression(paste("Cohort (", beta[C], ")")),
+  "beta_cohort_geno"      = expression(paste("Cohort (", delta[C], ")")),
+  "beta_age2_pheno"               = expression(paste("Non-linear age (", beta[Q], ")")),
+  "beta_diff_w_fu_pheno"         = expression(paste("Participation (", beta[P], ")")),
+  "beta_age2_geno"                = expression(paste("Non-linear age (", delta[Q], ")")),
+  "beta_diff_fu_geno"             = expression(paste("Participation (", delta[P], ")"))
+)
+
+
+# Plot
+dilutionPlot=ggplot(sumDil_long, aes(x = predictor, y = R2, fill = Correction)) +
+  geom_col(position = position_dodge(width = 0.6), width = 0.5) +
+  facet_grid(cols = vars(type), scales = "free_x", space = "free_y") +
+  geom_text(
+    aes(label = ifelse(Correction == "Corrected", label, "")),
+    position = position_dodge(width = 0.6),
+    vjust = -0.5, size = 3.5
+  ) +
+  labs( x = "", y = expression(R^2), fill = "") +
+  theme_minimal() +
+  ylim(0,1) +
+  scale_fill_manual( values = c("Corrected" = "#1f77b4", "Uncorrected" = "#ff7f0e")) +
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = math_labels, guide = guide_axis(angle = 45)) 
+dilutionPlot
+
+showtext::showtext_auto()  # Automatically use showtext for all text drawing
+saveFigure(fileName=paste0(HOME,"/results/figures/dilutionPlot"), plotName=dilutionPlot, w=20, h=15 )
+
+
 ###################################################################################
 # ================================== CREATE TABLES ================================
 ###################################################################################
 
 source(paste0(HOME, "/analysis/createTablesAge.R"))
+
+
+
+
 
 
 
