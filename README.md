@@ -92,6 +92,7 @@ Parameter specifications
 
 - **Analytical script:** [pgs.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/pgs.R)
 - Generates polygenic scores to test for polygenic x age interaction effects step 6
+- Requires the polygenic score software [PRSice-2](https://choishingwan.github.io/PRSice/)
 
 ## 6. Obtain age estimates and age-varying genetic effects for candidate genetic variants
  
@@ -104,6 +105,7 @@ Parameter specifications
 ## 7. Perform Mendelian Randomization analysis using time-varying genetic effects
  
 - **Analytical script:** [mr.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/mr.R)
+-  - Required R-packages: [TwoSampleMR](https://mrcieu.github.io/TwoSampleMR/articles/introduction.html)
 
 
 ## 8. Summary of the results
