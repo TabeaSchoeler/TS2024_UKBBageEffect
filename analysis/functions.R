@@ -1,15 +1,13 @@
 
 print("Install R packages")
-PROGSLOCAL <- file.path(dirname(HOME), "programs")
+#PROGSLOCAL <- file.path(dirname(HOME), "programs")
 DATA <- file.path(dirname(OUT), "data")
 PROGS <- file.path(dirname(OUT), "programs")
-package="lme4_1.1-35.5.tar.gz"
-#package="bigsparser_0.7.3.tar.gz"
-package="bigstatsr_1.6.1.tar.gz"
-package="svylme-master"
 
-#install.packages(paste0(PROGSLOCAL, "/", package), lib=paste0(PROGS, "/R"),repos = NULL)
+PROGSOUT <- file.path(dirname(HOME), "programs")
 
+#p="cause-master"
+#install.packages(paste0(PROGSOUT, "/", p), lib=paste0(PROGS, "/R"),repos = NULL)
 
 print("Load packages")
 R_libPaths=paste0(PROGS, "/R")
@@ -23,9 +21,34 @@ saveOutput=function(object, label, upload="no"){
   }
 }
 
-
+library(data.table)
 
 # ======================= extractPheno.R ============================
+
+quickCheck=function(var, listIn, varFile){
+    print(var)
+      ID=subset(varFile, label==var)$ID
+      listOut=list()
+
+      for ( i in 1:length(listIn) ) {
+      df=listIn[[i]] 
+      set=names(listIn )[i]
+      outVar=ifelse(NROW(grep(paste0("^", ID, "-0.0$"),colnames(df), value = TRUE))==0, 0, 1)
+      listOut[[i]]=data.frame(data=set, outVar)
+      }
+      dfOut=do.call(rbind, listOut)
+      dfAvail=subset(dfOut, outVar>0)
+
+      avail= NROW(dfAvail)
+      if(avail==0){
+        dataset=NA
+      } else {
+        dataset=paste0(dfAvail$data, collapse=", ")
+      }
+
+      dfReturn=data.frame(ID, var, avail, dataset)
+      return(dfReturn)
+}
 
 
 extractPheno=function(var, varFile, dfL, return){
@@ -719,6 +742,9 @@ return(dfOut)
       return(dfOut)
   }
 
+
+
+
  getAgeWithinQ=function(df, var){ # Quadratic age effects (longitudinal)
       n=length(levels(droplevels(as.factor( df$ID))))
       mW <-lmer( pheno ~ age +  I(age^2) + (1|ID), data=df)
@@ -737,23 +763,23 @@ lmeModel=function(df, var, model="cohort"){ # different mixed effects models
   }
   if(model=="snp_cohort"){
        dfS=na.omit(subset(df, select=c("pheno", "age_raw", "cohort", "ID", "snp", "batch", paste0("PC", 1:20)) ))
-       f=as.formula(paste0( "pheno ~ age_raw + cohort + snp + snp:age_raw + snp:cohort + as.factor(batch) + ",  paste0("PC", 1:20, collapse=" + "), " + (1|ID)"))
+       f=as.formula(paste0( "pheno ~ age_raw + cohort + age_raw:cohort  + snp + snp:age_raw + snp:cohort + as.factor(batch) + ",  paste0("PC", 1:20, collapse=" + "), " + (1|ID)"))
        lC<-lmer(f, data=dfS)
        m="cohort:snp"
   }
   
   if(model=="snp_age_lme"){
-       dfS=na.omit(subset(df, select=c("pheno", "age_raw", "ID", "snp", "batch", paste0("PC", 1:20)) ))
-       f=as.formula(paste0( "pheno ~ age_raw + snp + snp:age_raw + as.factor(batch) + ",  paste0("PC", 1:20, collapse=" + "), " + (1|ID)"))
+       dfS=na.omit(subset(df, select=c("pheno", "age", "ID", "snp", "batch", paste0("PC", 1:20)) ))
+       f=as.formula(paste0( "pheno ~ age + snp + snp:age + as.factor(batch) + ",  paste0("PC", 1:20, collapse=" + "), " + (1|ID)"))
        lC<-lmer(f, data=dfS)
-       m="age_raw:snp"
+       m="age:snp"
   }
   
     if(model=="snp_age2_lme"){
-       dfS=na.omit(subset(df, select=c("pheno", "age_raw", "ID", "snp", "batch", paste0("PC", 1:20)) ))
-       f=as.formula(paste0( "pheno ~ age_raw + I(age_raw^2) + snp + snp:age_raw + snp:I(age_raw^2) + as.factor(batch) + ",  paste0("PC", 1:20, collapse=" + "), " + (1|ID)"))
+       dfS=na.omit(subset(df, select=c("pheno", "age", "ID", "snp", "batch", paste0("PC", 1:20)) ))
+       f=as.formula(paste0( "pheno ~ age + I(age^2) + snp + snp:age + snp:I(age^2) + as.factor(batch) + ",  paste0("PC", 1:20, collapse=" + "), " + (1|ID)"))
        lC<-lmer(f, data=dfS)
-       m="I(age_raw^2):snp"
+       m="I(age^2):snp"
   }
 
     n=length(levels(droplevels(as.factor(dfS$ID))))
@@ -804,26 +830,54 @@ ageModelW=function(df, var, model="age"){ # Inverse-probability weighted age eff
       return(dfOut)
     }
 
+  ageModelWLong=function(df, var){ # Longitudinal age effects
+      datIN=na.omit(subset(df, select=c(pheno, age, ID, w)))
+      datIN$wn=datIN$w/mean(datIN$w)
+      nEff=round((sum(datIN$wn)^2)/sum(datIN$wn^2),0)
+      design.ps <- svydesign(ids=~ID,   weights = ~wn, data=datIN)
+      n=length(levels(droplevels(as.factor(datIN$ID))))
+      #mW <-lmer( pheno ~ age + (1|ID), data=dfS)
+      mW=svylme::svy2lme(pheno ~ age + (1|ID), design=design.ps, method = "nested", sterr  = TRUE)
+      dfOut=data.frame(var=var, type=c("within_age_weighted"), beta=mW$beta[2], se=sqrt(diag(mW$Vbeta))[2],  n= n)
+      return(dfOut)
+  }
 
 
-ageModel=function(var, return=NULL, data, datAge=NULL, snp=NULL, gene=NULL){ # obtain age effects across all models
+
+
+ageModel=function(var, return=NULL, data, datAge=NULL, snp=NULL, gene=NULL, pgs="no"){ # obtain age effects across all models
   dfSum=NA
   print(paste0("+++++++++++ ", var, " +++++++++++"))
   data$age_raw=data[["age"]]
   data$m=NULL
-  head(data)
   print("Prepare longitudinal data")
   data <- data %>% dplyr::group_by(ID) %>% dplyr::mutate(age = age_raw - mean(age_raw)) %>% dplyr::ungroup()
-  #data <- data %>% dplyr::group_by(ID) %>% dplyr::mutate(time = age_raw - min(age_raw)) %>% dplyr::ungroup()
+  
+  if(pgs=="yes"){
+    selID=unique(data$ID)
+    print(paste0("Select independent UKB subset (n=",NROW(selID),") from baseline sample for pgs estimates for ", var))
+    datAgeS=subset(datAge, eid %in% selID)
+    datAge=datAgeS
+    datAgeS=NULL
+    gwaTest=fread(paste0(OUT, "/output/regenie/genofiles/processed/", var, "_0_ind"), nrows=1000)
+    nTest=max(gwaTest$N, na.rm=TRUE)
+    outDat=data.frame(eid=datAge$eid, pheno=datAge[[paste0(var, "_0")]])
+    pgsDF=readRDS(paste0(OUT, "/output/pgs/scores/", var, ".rds"))
+    pgsDF$pgs=pgsDF[[paste0("pgs_", var)]]
+    datPGS=merge(outDat, pgsDF, by="eid", all.x=TRUE)
+    mPGS=lm(pheno ~ pgs, data=datPGS)
+    r2=summary(mPGS)$r.squared
+    nVal=nobs(mPGS)
+    print(paste0("Explained variance: ", round(r2*100, 2), "%"))
+  }
 
-  baselineM=mean(datAge[[paste0(var, "_0")]], na.rm=TRUE) #subset(means, pheno==var)$mean
-  baselineSD=sd(datAge[[paste0(var, "_0")]], na.rm=TRUE) #subset(means, pheno==var)$sd
+  baselineM=mean(datAge[[paste0(var, "_0")]], na.rm=TRUE) 
+  baselineSD=sd(datAge[[paste0(var, "_0")]], na.rm=TRUE) 
   data$phenoWithin=data[[var]] 
   data$pheno = (  data$phenoWithin - baselineM) / baselineSD
   data$phenoWithin=NULL;data[[var]]=NULL
   data$cohort=as.numeric(data$year)-data$age_raw
   data2FU <- as.data.frame(data %>% dplyr::group_by(ID) %>% dplyr::filter(dplyr::n() == 3) %>% dplyr::ungroup())
-  dataW=merge(data, data.frame(ID=datAge$eid, w=datAge$w), by="ID", all.x=TRUE) # add sampling weights to longitudinal data
 
   print("Prepare cross-sectional data")
   datAgeA=datAge
@@ -848,11 +902,19 @@ ageModel=function(var, return=NULL, data, datAge=NULL, snp=NULL, gene=NULL){ # o
     print('Get weighted age effects (cross-sectional)')
     ageBetweenW= ageModelW(df=datAge, var=var)
 
+    print('Get weighted age effects (longitudinal)')
+    ageWithinWLong= ageModelWLong(df=data, var=var)
+
+    print("Get within person ages effects (in only those with sampling weights)")
+    dataW=na.omit(data)
+    ageWitin_sub=getAgeWithin(df=dataW, var=var)
+    ageWitin_sub$type="within_age_complete_weights"
+
     print('Get cohort effects')
     ageCohort = lmeModel(df=data, var=var, model="cohort")
 
     print('Combine all results')
-    dfSum=rbind(ageWitin, ageWitin2, ageBetween, ageBetweenFU, ageBetweenW, ageCohort ) #ageCohort2
+    dfSum=rbind(ageWitin, ageWitin2, ageBetween, ageBetweenFU, ageBetweenW, ageWithinWLong, ageWitin_sub, ageCohort ) #ageCohort2
     dfSum$P <- 2 * pnorm(-abs(dfSum$beta/dfSum$se))
     return(dfSum)
     }
@@ -862,17 +924,21 @@ ageModel=function(var, return=NULL, data, datAge=NULL, snp=NULL, gene=NULL){ # o
     snpVar=levels(as.factor(snp$SNP))
     listSNP=list()
     for(i in 1:NROW(snpVar)){
+
+    if(pgs=="no"){
       s=snpVar[i]
       print(paste0('Get results for ',s, ' on ', var, " (iteration ",i, " out of ", NROW(snpVar), ")" ))
       regenie=readRDS(paste0(HOME,"/output/rds/clump.rds"))
       regenieS=subset(regenie, pheno==var & SNP==s)
       colSNP=regenieS[1,]
+      #aWithinG=subset(regenieS, type=="interaction_within")
+      #ageGeneWithin=data.frame(var=var, type="regenie_age_snp_within", beta=aWithinG$BETA, se=aWithinG$SE, n=aWithinG$N)
+      #aBetweenG=subset(regenieS, type=="interaction_between")
+      #ageGeneBetween=data.frame(var=var, type="regenie_age_snp_between", beta=aBetweenG$BETA, se=aBetweenG$SE, n=aBetweenG$N)
+     } else{
+      s=snpVar
+     }
 
-      aWithinG=subset(regenieS, type=="interaction_within")
-      ageGeneWithin=data.frame(var=var, type="regenie_age_snp_within", beta=aWithinG$BETA, se=aWithinG$SE, n=aWithinG$N)
-      aBetweenG=subset(regenieS, type=="interaction_between")
-      ageGeneBetween=data.frame(var=var, type="regenie_age_snp_between", beta=aBetweenG$BETA, se=aBetweenG$SE, n=aBetweenG$N)
-      
       gDF=subset(gene, select=c("eid", s,"SEX", "batch", paste0("PC", 1:20)))
       names(gDF)[names(gDF) == s] <- 'snp'
       dataG=merge(data, gDF, by.x="ID", by.y="eid", all.x=TRUE ) # longitudinal + genetics
@@ -900,8 +966,12 @@ ageModel=function(var, return=NULL, data, datAge=NULL, snp=NULL, gene=NULL){ # o
       ageGeneW= ageModelW(df=datAgeG, var=var, model="snp") 
     
       print('Combine all results')
-      dfSum=rbind(ageGeneWithin, ageGeneBetween, ageGeneBetween_lm, ageGeneBetweenFU_lm, ageGeneWithin_lm, snpCohort, ageGeneW, snpAgeLme, snpAge2Lme ) #snpCohort2
-      dfSum$SNP=s;dfSum$CHR=colSNP$CHR;dfSum$POS=colSNP$POS;dfSum$A1=colSNP$A1;dfSum$A2=colSNP$A2
+      dfSum=rbind(ageGeneBetween_lm, ageGeneBetweenFU_lm, ageGeneWithin_lm, snpCohort, ageGeneW, snpAgeLme, snpAge2Lme ) #ageGeneWithin, ageGeneBetween, 
+        if(pgs=="no"){
+          dfSum$SNP=s;dfSum$CHR=colSNP$CHR;dfSum$POS=colSNP$POS;dfSum$A1=colSNP$A1;dfSum$A2=colSNP$A2
+          } else {
+          dfSum$nVal=nVal; dfSum$r2=r2; dfSum$nTest=nTest
+          }
       dfSum$P <- 2 * pnorm(-abs(dfSum$beta/dfSum$se))
       listSNP[[i]]=dfSum
   }
@@ -1044,14 +1114,15 @@ getBL=function(var, dfFU, dfBL){
 
 
 
-prepareAge=function(df, var, ID){
-    print(var)
-    timeP=length(which(!is.na(match(colnames(df), paste0(var, "_", 0:10)))))-1
-    #timeP=1 # select first follow up only
-    #timeP=2
-    longP=getLongFE(var=var, time=timeP, ID=ID, df=df)
-    longO <- longP[order(longP$ID ),]
-    return(longO)
+prepareAge <- function(df, var, ID, w){
+  print(var)
+  timeP <- length(which(!is.na(match(colnames(df), paste0(var, "_", 0:10)))))-1
+  longP <- getLongFE(var=var, time=timeP, ID=ID, df=df)
+  print("Add follow up weights")
+  longO <- longP[order(longP$ID), ]
+  wS <- data.frame(ID = w$eid, w = w$PW_participationFU)
+  longW <- merge(longO, wS, by="ID", all.x=TRUE)
+  return(longW)
 }
 
 
@@ -1428,7 +1499,7 @@ readGWA=function(model){
 }
 
 
-clumpData=function(clump_input, name){
+clumpData=function(clump_input, name, r2_thres=0.001){
   print(paste0("Clump data for ",name))
   print("Save SNP file")
   print(paste0("Number of included SNPs: ", NROW(clump_input)))
@@ -1440,7 +1511,7 @@ clumpData=function(clump_input, name){
               col.names=T,
               quote=F)
 
-  system(paste0(PROGS, "/plink --bfile ", DATA, "/clump/g1000_eur --clump ", HOME, "/output/clump/",name, ".pvalsfile --clump-snp-field SNP --clump-field P --out ",  HOME, "/output/clump/" ,name, ".pvalsfile --clump-kb 250 --clump-r2 0.1 --clump-p1 1"))
+  system(paste0(PROGS, "/plink --bfile ", DATA, "/clump/g1000_eur --clump ", HOME, "/output/clump/",name, ".pvalsfile --clump-snp-field SNP --clump-field P --out ",  HOME, "/output/clump/" ,name, ".pvalsfile --clump-kb 10000 --clump-r2 ",r2_thres," --clump-p1 1"))
   print("Remove SNP file")
   system(paste0("rm ", HOME,"/output/clump/",  name,".pvalsfile" ))
 
@@ -1457,20 +1528,6 @@ clumpData=function(clump_input, name){
  
 }
 
-
-mungeData=function(name, path){
-  paste0("start munging for: ", name)
-  file.remove(paste0(path, name,".sumstats.gz"))
-  setwd(paste0(OUT,"/output/ldsc"))
-
-  munge(files = paste0(path, name),
-        hm3 = paste0(DATA, "/ldsc/eur_w_ld_chr/w_hm3.snplist"),
-        trait.names=name,
-        info.filter = 0.9,
-        maf.filter = 0.01)
-
-    paste0("Munging done for: ", name)
-}
 
 saveGWA=function(df, name){
       print("Save as text file")
@@ -1496,6 +1553,7 @@ compareSNP=function(var, s=""){
     within=readRDS(paste0(HOME,"/output/clump/clump_",var,"_change.rds"))
     marginal=readRDS(paste0(HOME,"/output/clump/clump_",var,"_0.rds"))
     
+
     print("Select LD-independent SNPs from all identified SNPs")
     clumpDF=rbind(betweenInteracAll, within, marginal)
     clumpSel=clumpData(clump_input=clumpDF, name=paste0(var, "_eff"))
@@ -1787,3 +1845,286 @@ normPlot=function(df, var){
     }
 }
 
+
+getCorC=function(df, it){
+    print(paste0("Iteration ", it))
+    set.seed(it)
+    df$Y=rnorm(NROW(df))
+    df$X=rnorm(NROW(df))
+    df$wnull=1
+    
+    # weighting applied
+    dw <- svydesign(ids=~1,   weights = ~wn, data=df)
+    mw=svyglm(Y ~ X, design=dw)
+    coefw=as.data.frame(   coef(summary(mw)))
+
+    # no weighting applied
+    dnull <- svydesign(ids=~1,   weights = ~wnull, data=df)
+    mw=svyglm(Y ~ X, design=dnull)
+    coefnull=as.data.frame(   coef(summary(mw)))
+
+    dfOut=data.frame(beta_w=coefw[["Estimate"]][2], beta_null=coefnull[["Estimate"]][2], iteration=it)
+    return(dfOut)
+}
+
+
+
+funMR=function(exposure, outcome, model, nTop=10){
+
+    print("========================================")
+    print(paste0("Start MR for exposure ", exposure))
+    print("========================================")
+    #clumpAll=readRDS( paste0(HOME,"/output/rds/clump.rds"))
+
+    if(model=="0"){
+      GWAout=data.table::fread(paste0(OUT, "/output/regenie/genofiles/processed/", exposure,"_", model))
+      gwaClump=clumpData(clump_input=subset(GWAout, P<5e-8), name=exposure)
+      SNPS=gwaClump
+      SNPS$var=exposure
+    } 
+    if(model=="change"){
+      #SNPS=subset(clumpA, pheno==exposure & type=="interaction_within" & p_fdr<0.05)
+      GWAout=data.table::fread(paste0(OUT, "/output/regenie/genofiles/processed/", exposure,"_", model))
+      gwaClump=clumpData(clump_input=subset(GWAout, P<5e-5), name=exposure)
+      SNPS <- gwaClump %>% dplyr::arrange(P) %>% dplyr::slice_head(n = nTop)
+      SNPS$var=exposure
+    }
+     if(model=="0_interaction"){
+      #SNPS=subset(clumpA, pheno==exposure & type=="interaction_between" & p_fdr<0.05)
+      GWAout=data.table::fread(paste0(OUT, "/output/regenie/genofiles/processed/", exposure,"_", model))
+      gwaClump=clumpData(clump_input=subset(GWAout, P<5e-5), name=exposure)
+      SNPS <- gwaClump %>% dplyr::arrange(P) %>% dplyr::slice_head(n = nTop)
+      SNPS$var=exposure
+    }
+
+    
+    selSNP=unique(subset(SNPS, var==exposure)$SNP)
+    expAll=data.table::fread(paste0(OUT, "/output/regenie/genofiles/processed/", exposure,"_", model))
+    expSel=subset(expAll, SNP %in% selSNP)
+    
+    print("Format exposure data")
+    exposureFormat=TwoSampleMR::format_data(data.frame(expSel),
+                           type="exposure",
+                           snp_col="SNP", 
+                           beta_col = "BETA",
+                           se_col = "SE",
+                           effect_allele_col = "A1",
+                           other_allele_col = "A2",
+                           pval_col = "P",
+                           eaf_col = "EAF",
+                           samplesize_col = "N")
+    exposureFormat$exposure=exposure
+
+    print("Format outcome data")
+    outAll=data.table::fread(paste0(OUT, "/output/regenie/genofiles/processed/", outcome,"_", model))
+    outSel=subset(outAll, SNP %in% selSNP)
+    outcomeFormat=TwoSampleMR::format_data(data.frame(outSel),
+                           type="outcome",
+                           snp_col="SNP", 
+                           beta_col = "BETA",
+                           se_col = "SE",
+                           effect_allele_col = "A1",
+                           other_allele_col = "A2",
+                           pval_col = "P",
+                           eaf_col = "EAF",
+                           samplesize_col = "N")
+    outcomeFormat$outcome=outcome  
+
+    print("Harmonize data")
+    datMR <- TwoSampleMR::harmonise_data(exposure_dat = exposureFormat, 
+                                 outcome_dat = outcomeFormat)
+    datMR$model=model
+    datMR$exposure=exposure
+    datMR$outcome=outcome
+
+    print("Perform MR")
+    mrOut=TwoSampleMR::mr(datMR, method_list=c( "mr_ivw"))
+    mrOut$exposure=exposure
+    mrOut$outcome=outcome
+    f_stats <- (datMR$beta.exposure^2) / (datMR$se.exposure^2) #  F-statistic => Want F to be high
+    mrOut$F_stat=mean(f_stats, na.rm=TRUE) #sufficient power if the corresponding F-statistic was >10
+    mrOut$model=model
+    mrOut$id.exposure = NULL;     mrOut$id.outcome = NULL
+    print("========================================")
+    print(paste0("Finnished MR for outcome ", outcome))
+    print("========================================")
+
+   mrList=list(mrOut, datMR)
+   names(mrList)=c("mr", "snps")
+  return(mrList)
+}
+
+
+fuIDL=function(var, dfIn){
+    df=dfIn[[var]]
+    dfC=na.omit(df)
+    dfID=data.frame(eid=dfC$eid)
+    print(paste0(NROW(dfID), " complete data for ", var))
+    return(dfID)
+}
+
+
+
+
+runLasso=function(data, iteration, varInc, variableList){
+    library(glmnet)
+    library('fastDummies')
+
+    print("Run interaction model")
+    start_time <- Sys.time()
+    dataD=createDummy(df=data, varInc, return="data", variableList=variableList)
+    nonDummyIncReg=createDummy(df=data, varInc, return="variable", variableList=variableList)
+    dataC=subset(dataD, select=c("eid", "sample",nonDummyIncReg, "weight_individual"))
+    #Omit all NAs
+    dataS<-na.omit(dataC)
+    print(paste0("Remove ", NROW(dataC)-NROW(dataS), " observations due to missing data in auxilliary variables"))
+
+   f <- as.formula( ~ .*.)
+   x <- model.matrix(f,dataS[, nonDummyIncReg])
+   varModel=data.frame(varModelIn=colnames(x))
+   varModel=subset(varModel, varModelIn!="(Intercept)")
+
+   print(paste0("Variables included in the model: ", NROW(colnames(x)) ))
+
+    print("Start lasso regression")
+    y = as.factor(dataS$sample)
+    w=dataS$weight_individual
+    print(paste0("N complete cases (sample == 1) included: ", NROW(subset(dataS, sample==1))))
+    print(paste0("N complete controls (sample == 0) included: ", NROW(subset(dataS, sample==0))))
+    print(paste0("Total N included: ", NROW(dataS)))
+
+    cvfit = cv.glmnet(x, y, # we need to find a model configuration, and thus the value of λ, which minimizes the the residuals (difference between observations and prediction). The glmnet package ships with a build-in cross-validation function. The function cv.glmnet() performs by default 10-fold cross-validation
+    family = "binomial", 
+    type.measure = "class" ,
+    nfolds = 5,
+    weights=w,
+    nlambda=100,
+    parallel = F)
+
+    r2 = cvfit$glmnet.fit$dev.ratio
+   
+    print("Get probability weights")
+    dataS$probs <- predict(cvfit, newx=x, s="lambda.min", type = "response")[,1]
+    print(head(dataS$probs, n=3))
+    
+    dataI=subset(dataS, sample==1)
+    dataI$IPSW=(1-dataI$probs)/dataI$probs # inverse probability weights
+    dataI$IPSWnorm=dataI$IPSW/mean(dataI$IPSW) # normalized inverse probability weights
+    nEFF=(sum(dataI$IPSWnorm)^2)/sum(dataI$IPSWnorm^2)
+    print(paste0("Effective sample size: ", nEFF, " (out of Ntiot:",NROW(dataI),")"))
+
+    r2df=data.frame(r2, lambda=cvfit$lambda)
+    r2Extr=subset(r2df, lambda==cvfit$lambda.min)
+    coef_names_GLMnet <- coef(cvfit, s="lambda.min")
+    keepVars=row.names(coef_names_GLMnet)[coef_names_GLMnet@i+1]
+    effectVar=coef_names_GLMnet@x
+    LassoOut=data.frame(keepVars=keepVars, effectVar=effectVar)
+    varModelOut=merge(varModel, LassoOut, by.x="varModelIn", by.y="keepVars", all.x=T)
+    varModelOut=varModelOut[order(varModelOut$effectVar, decreasing = TRUE), ] 
+    print(paste0("Non-dummay variables: ", NROW(varInc), ", all variables: ",NROW(nonDummyIncReg),". Among ", NROW(rownames(varModel)), " (main and interaction terms), ", NROW(LassoOut), " are selected"))
+
+    dfSUm=data.frame(testedPredictors=NROW(rownames(varModel)), includedPredictors=NROW(LassoOut), r2=r2Extr$r2, model=iteration, n=NROW(dataI))
+    dfSUm$iteration=iteration
+    dfSUm$nEFF=round(nEFF,0)
+    print(head(dfSUm))
+    end_time <- Sys.time()
+    print(paste0("Running time: ", end_time - start_time))
+
+    dataDs=subset(dataI, select=c(eid, IPSWnorm))
+    names(dataDs)[names(dataDs) == 'IPSWnorm'] <- paste0("PW_", iteration)  
+
+    names(varModelOut)[names(varModelOut) == 'varModelIn'] <- paste0("var_", iteration)  
+    names(varModelOut)[names(varModelOut) == 'effectVar'] <- paste0("effect_", iteration)  
+
+
+    listOut=c(list(dataDs),list(varModelOut), list(dfSUm))
+    names(listOut)=c("data", "lasso", "lassoSum")
+
+    print("==SUMMARY==")
+    print(dfSUm)
+    return(listOut)
+}
+
+
+
+createDummy=function(df, varInc, variableList, return="data"){
+  library('fastDummies')
+  dummyCol=as.data.frame(subset(variableList, levelsUKBB!="continuous" & includePrediction=="yes" & labelUKBB_recoded!="education"))$recodedName
+  dummyCol <- unique(varInc[varInc %in% dummyCol])
+  nonDummyInc <- unique(varInc[!varInc %in% dummyCol])
+  UKBBHSEDummyIn=subset(df, select=c("eid",dummyCol))
+
+  print("Separate binary from categorical")
+  colLevels=UKBBHSEDummyIn %>%  sapply(levels)
+  colLevelsDF=as.data.frame(do.call(rbind, lapply(colLevels, function(x) NROW(x))))
+  colLevelsDF$variable=rownames(colLevelsDF)
+
+  colLevelsBinary=subset(colLevelsDF, V1==2)
+  colLevelsCategorical=subset(colLevelsDF, V1>2)
+  UKBBHSEDummyBinary <- dummy_cols(UKBBHSEDummyIn, select_columns = colLevelsBinary$variable, remove_first_dummy = TRUE, ignore_na=TRUE)
+  UKBBHSEDummyCat <- dummy_cols(UKBBHSEDummyIn, select_columns = colLevelsCategorical$variable, remove_first_dummy = FALSE, ignore_na=TRUE)
+  UKBBHSEDummy=merge(UKBBHSEDummyBinary, UKBBHSEDummyCat, by="eid", all.x=T, sort=F, suffixes=c("", ".rem"))
+
+  nonDummyIncRegCat <- unique(colnames(UKBBHSEDummy)[!colnames(UKBBHSEDummy) %in% "eid"])
+  nonDummyIncRegCat <- unique(nonDummyIncRegCat[!nonDummyIncRegCat %in% dummyCol])
+  remVar=data.frame(varCheck=nonDummyIncRegCat)
+  remVar$remove=ifelse(grepl('.rem', remVar$varCheck)==T, "remove", remVar$varCheck)
+  nonDummyIncRegCat=subset(remVar, remove!="remove")$varCheck
+  nonDummyIncRegCon <- unique(varInc[!varInc %in% dummyCol])
+  nonDummyIncReg=c(nonDummyIncRegCon, nonDummyIncRegCat)
+  UKBBHSED=merge(df, UKBBHSEDummy, by="eid", all.x=T, sort=F, suffixes=c("", ".rem2"))
+
+if(return=="data"){
+  return(UKBBHSED)
+}
+if(return=="variable"){
+  return(nonDummyIncReg)
+}
+}
+
+
+
+
+genPRS=function(pheno, type="raw"){
+    print(paste0("Start PGS for ", pheno))
+    output_path=paste0(OUT, "/output/pgs/scores")
+    setwd(output_path)
+
+    GWA=fread(paste0(OUT, "/output/regenie/genofiles/processed/", pheno, "_0_ind"))
+    clump=clumpData(GWA, pheno, r2_thres=0.001)
+    head(clump)
+    clump_unique <- clump[!duplicated(clump$SNP), ]
+    
+    write.table(clump_unique,
+              file= paste0(OUT, "/output/pgs/clump/", pheno),
+              sep="\t",
+              row.names = FALSE,
+              col.names=T,
+              quote=F)
+
+    #pMin=min(clump$P)
+    #pMinV=ifelse(pMin <5e-8, 5e-8, NA)
+    #pMinV = ifelse(pMin > 5e-8 & pMin < 5e-7, 5e-7, pMinV)
+    #pMinV = ifelse(pMin > 5e-7 & pMin < 5e-6, 5e-6, pMinV)
+    pMinV=1
+    system(paste0(PROGS, "/PRSice --base ", OUT, "/output/pgs/clump/", pheno, " --target ", UKBB, "/genotypes/imp/v3/ukb22828_c#_b0_v3,",UKBB,"/genotypes/imp/v3/ukb22828_c1_22_b0_v3.sample --type bgen --no-regress --maf 0.01 --no-clump --out ", output_path, "/",pheno, " --thread max --all-score --cov " , OUT,"/output/regenie/phenofiles/", pheno, "_0_Covar --score std --fastscore --thread max --bar-levels ", pMinV, " --no-full"))
+    # https://www.biostars.org/p/9499384/
+    # --bar-levels <p-value threshold> --no-full --fastscore -no-regress and you should in theory get the PRS at the specific p-value threshold
+    # --no-regress: Do not perform the regression analysis and simply output all PRS.
+
+    for(i in 1:10){
+      if(file.exists(paste0(output_path, "/", pheno, ".all_score"))==FALSE){
+          print(paste0("Perform again on valid data, attempt: ", i))
+          system(paste0(PROGS, "/PRSice --base ", OUT, "/output/pgs/clump/", pheno, " --target ", UKBB, "/genotypes/imp/v3/ukb22828_c#_b0_v3,",UKBB,"/genotypes/imp/v3/ukb22828_c1_22_b0_v3.sample --type bgen --no-regress --maf 0.01 --no-clump --out ", output_path, "/",pheno, " --thread max --all-score --cov " , OUT,"/output/regenie/phenofiles/", pheno, "_0_Covar --score std --fastscore --thread max --bar-levels ", pMinV, " --no-full --extract ", output_path, "/" ,pheno, ".valid"))
+        }
+      }
+    pgsDF=fread(paste0(output_path, "/", pheno, ".all_score"))
+    print("Remove old file")
+    dfOut=data.frame(eid=pgsDF$FID, pgs=pgsDF[,3])
+    colnames(dfOut)=c("eid", paste0("pgs_", pheno))
+
+    print("Save output on the cluster")
+    saveRDS(dfOut, paste0(output_path, "/", pheno, ".rds"))
+    file.remove(paste0(pheno, ".all_score"));  file.remove(paste0(pheno, ".log")); file.remove(paste0(pheno, ".valid")); file.remove(paste0(OUT, "/output/pgs/clump/", pheno))
+
+}
