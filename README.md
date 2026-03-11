@@ -101,7 +101,12 @@ Parameter specifications
     - Use for genotypic analyses, including cross-sectional and longitudinal age-varying genetic effects, cohort-varying genetic effects, quadratic age-varying genetic effects and weighted age-varying genetic effects
 
 
-## 7. Summary of the results
+## 7. Perform Mendelian Randomization analysis using time-varying genetic effects
+ 
+- **Analytical script:** [mr.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/mr.R)
+
+
+## 8. Summary of the results
 
 - **Analytical script:** [summaryLongitudinal.R](https://github.com/TabeaSchoeler/TS2024_UKBBageEffect/blob/main/analysis/summaryAge.R)
 
